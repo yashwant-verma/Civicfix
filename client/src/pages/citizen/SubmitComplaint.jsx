@@ -1,8 +1,10 @@
+// File: src/pages/citizen/SubmitComplaint.jsx
+
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import * as api from '../../api/complaints.js';
+import * as api from '/src/api/complaints'; // FINAL ATTEMPT: Assume src is root
 import { MapPin, Image, Send, Loader2, Camera, X } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext.jsx';
+import { useAuth } from '/src/context/AuthContext'; // FINAL ATTEMPT: Assume src is root
 
 const SubmitComplaint = () => {
     const { user } = useAuth();
@@ -34,7 +36,8 @@ const SubmitComplaint = () => {
         const file = e.target.files[0];
         if (file) {
             setFormData({ ...formData, complaintImage: file });
-            setUseCamera(fileInputRef.current.files.length > 0 && fileInputRef.current.capture === 'environment');
+            // Using the presence of files in ref to determine capture mode
+            setUseCamera(fileInputRef.current.files.length > 0 && fileInputRef.current.capture === 'environment'); 
         } else {
             setFormData({ ...formData, complaintImage: null });
         }
@@ -191,13 +194,26 @@ const SubmitComplaint = () => {
                             value={formData.category}
                             onChange={handleInputChange}
                             required
+                            // Native dropdown behavior allows downward scrolling when necessary.
                             className="w-full border border-gray-300 rounded-lg p-3 focus:ring-blue-500 focus:border-blue-500 shadow-sm bg-white text-base"
                         >
                             <option value="Pothole">Pothole</option>
                             <option value="Garbage">Illegal Dumping/Garbage</option>
                             <option value="Water Leak">Water Leak/Pipe Burst</option>
                             <option value="Street Light">Street Light Outage</option>
-                            <option value="Other">Other Infrastructure Issue</option>
+                            <option value="Damaged Signage">Damaged/Missing Road Signage</option>
+                            <option value="Park Maintenance">Park/Playground Maintenance Issue</option>
+                            <option value="Traffic Light">Malfunctioning Traffic Light</option>
+                            <option value="Road Hazard">General Road Hazard (Oil Spill, Debris)</option>
+                            <option value="Tree Hazard">Fallen/Hazardous Tree or Branch</option>
+                            <option value="Noise Complaint">Excessive Noise/Public Disturbance</option>
+                            <option value="Sidewalk Repair">Broken/Damaged Sidewalk/Curb</option>
+                            <option value="Animal Control">Stray/Dangerous Animals (Animal Control)</option>
+                            <option value="Sewer Backup">Sewer/Drainage Backup</option>
+                            <option value="Public Safety">Non-Emergency Public Safety Concern</option>
+                            <option value="Homelessness">Encampment/Homelessness Concern</option>
+                            <option value="Public Building">Issue with Public Building/Property</option>
+                            <option value="Other">Other Unlisted City Issue</option>
                         </select>
                     </div>
                 </div>

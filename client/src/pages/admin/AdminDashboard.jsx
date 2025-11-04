@@ -1,17 +1,22 @@
+// File: src/pages/admin/AdminDashboard.jsx
+
 import React, { useState, useEffect, useMemo } from 'react';
 import * as api from '../../api/complaints'; 
-import { useAuth } from '../../context/AuthContext';
-import { Loader2, Zap, Settings, XCircle, CheckCircle, Clock, Mail } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext'; 
+import { Loader2, Zap, Settings, XCircle, CheckCircle, Clock, Mail, ThumbsUp, ThumbsDown, Image as ImageIcon, Globe, ShieldCheck, RefreshCcw } from 'lucide-react'; 
 
 const STATUS_OPTIONS = ['Registered', 'In Progress', 'Resolved', 'Rejected'];
-const FILTER_OPTIONS = ['All', ...STATUS_OPTIONS];
+const FILTER_OPTIONS = ['All', ...STATUS_OPTIONS, 'Verified Complete'];
 
-// 🚨 Department Data (Emails updated here by you)
 const DEPARTMENT_OPTIONS = [
-    { name: 'Public Works Dept', email: 'yashver2005@gmail.com' },
+    { name: 'Public Works Dept', email: 'works@city.gov' },
     { name: 'Sanitation Dept', email: 'sanitation@city.gov' },
     { name: 'Traffic & Transport', email: 'traffic@city.gov' },
     { name: 'Electrical/Lighting', email: 'electric@city.gov' },
+    { name: 'Parks & Recreation', email: 'parks@city.gov' },
+    { name: 'Citizen Services', email: 'services@city.gov' },
+    { name: 'Police Department', email: 'police@city.gov' },
+    { name: 'Fire & Safety', email: 'fire@city.gov' },
 ];
 
 const ComplaintStatusBadge = ({ status }) => {
@@ -20,6 +25,7 @@ const ComplaintStatusBadge = ({ status }) => {
         'In Progress': 'bg-blue-100 text-blue-800 border-blue-500',
         Resolved: 'bg-green-100 text-green-800 border-green-500',
         Rejected: 'bg-red-100 text-red-800 border-red-500',
+        'Verified Complete': 'bg-purple-100 text-purple-800 border-purple-500',
     };
     return (
         <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${statusClasses[status] || 'bg-gray-100 text-gray-800 border-gray-500'}`}>
@@ -28,18 +34,176 @@ const ComplaintStatusBadge = ({ status }) => {
     );
 };
 
+const StatusCounts = ({ data }) => {
+    const counts = data.reduce((acc, c) => {
+        acc[c.status] = (acc[c.status] || 0) + 1;
+        return acc;
+    }, {});
+
+    const cards = [
+        { title: 'Total', status: 'All', value: data.length, icon: <Zap className="h-6 w-6 text-red-500" />, color: 'border-red-500' },
+        { title: 'Registered', status: 'Registered', value: counts['Registered'] || 0, icon: <Clock className="h-6 w-6 text-yellow-500" />, color: 'border-yellow-500' },
+        { title: 'In Progress', status: 'In Progress', value: counts['In Progress'] || 0, icon: <Settings className="h-6 w-6 text-blue-500" />, color: 'border-blue-500' },
+        { title: 'Resolved', status: 'Resolved', value: counts['Resolved'] || 0, icon: <CheckCircle className="h-6 w-6 text-green-500" />, color: 'border-green-500' },
+        { title: 'Verified Complete', status: 'Verified Complete', value: counts['Verified Complete'] || 0, icon: <ShieldCheck className="h-6 w-6 text-purple-500" />, color: 'border-purple-500' },
+    ];
+
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+            {cards.map(card => (
+                <div key={card.title} className={`bg-white p-4 rounded-xl shadow-lg border-l-4 ${card.color} flex items-center justify-between`}>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500">{card.title}</p>
+                        <p className="text-2xl font-bold text-gray-900 mt-1">{card.value}</p>
+                    </div>
+                    <div className={`p-3 rounded-full ${card.color.replace('border-l-4 border-', 'bg-')}`}>
+                        {React.cloneElement(card.icon, { className: 'h-6 w-6 text-white' })} 
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// 🚨 ADMIN VIEW ONLY MODAL: Shows citizen evidence without approval buttons 🚨
+const AdminVerificationModal = ({ isOpen, onClose, complaint }) => {
+    const [loadingEvidence, setLoadingEvidence] = useState(false);
+    const [ownerVerificationData, setOwnerVerificationData] = useState(null);
+    const [error, setError] = useState(null);
+
+    const fetchVerifications = async () => {
+        const ownerVerification = complaint.verifications?.[0];
+        const verificationId = ownerVerification?._id;
+
+        if (!complaint || !verificationId) { 
+            setOwnerVerificationData(null);
+            setError(null);
+            return;
+        }
+
+        setLoadingEvidence(true);
+        setError(null);
+        try {
+            const data = await api.getVerificationEvidence(complaint._id, verificationId); 
+            setOwnerVerificationData(data.verification);
+
+        } catch (err) {
+            console.error('Failed to fetch evidence:', err.response?.data?.message || err.message);
+            setError('Failed to fetch verification evidence. Check backend API/DB linkage.');
+        } finally {
+            setLoadingEvidence(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen && complaint) {
+            if (complaint.verifications && complaint.verifications.length > 0) {
+                fetchVerifications();
+            } else {
+                setOwnerVerificationData(null);
+                setError(null); 
+            }
+        } else {
+            setOwnerVerificationData(null);
+            setError(null);
+        }
+    }, [isOpen, complaint]);
+
+    if (!isOpen || !complaint) return null;
+
+    const ownerVerified = complaint.verificationStatus === 'Verified Complete';
+    const ownerRejected = complaint.verificationStatus === 'Verification Failed';
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-sm sm:max-w-xl my-8">
+                <div className="flex justify-between items-start mb-6">
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-900">Review Citizen Verification Evidence</h3>
+                    <button onClick={onClose}><XCircle className='h-6 w-6 text-gray-400 hover:text-gray-600' /></button>
+                </div>
+                
+                {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
+
+                <div className="space-y-4">
+                    <p className="text-base font-semibold text-gray-700">Complaint: {complaint.title}</p>
+                    <p className='text-sm text-gray-600'>Admin Status: <ComplaintStatusBadge status={complaint.status} /></p>
+                    
+                    <div className='p-4 border-2 rounded-lg'
+                        style={{ borderColor: ownerVerified ? '#10B981' : ownerRejected ? '#EF4444' : '#6B7280', backgroundColor: ownerVerified ? '#D1FAE5' : ownerRejected ? '#FEE2E2' : '#F3F4F6' }}
+                    >
+                        <p className="text-md font-bold flex items-center mb-1" 
+                            style={{ color: ownerVerified ? '#059669' : ownerRejected ? '#B91C1C' : '#374151' }}
+                        >
+                            <ShieldCheck className='h-5 w-5 mr-2'/> 
+                            Current Verification Status: {complaint.verificationStatus}
+                        </p>
+                        <p className='text-sm text-gray-600'>
+                            Verification status is set automatically by the original complaint owner.
+                        </p>
+                    </div>
+
+                    <h4 className='text-lg font-bold mt-6 pt-4 border-t'>Citizen Evidence:</h4>
+                    
+                    {loadingEvidence ? (
+                        <div className="flex items-center justify-center py-4"><Loader2 className="animate-spin h-6 w-6 mr-2" /> Loading Owner Evidence...</div>
+                    ) : (
+                        <div className='space-y-4 max-h-[30vh] overflow-y-auto'>
+                            {!ownerVerificationData ? (
+                                <p className='text-sm text-gray-500'>Owner has not provided final verification evidence yet.</p>
+                            ) : (
+                                // Render the single verification record
+                                <div className="border p-3 rounded-lg bg-gray-50">
+                                    <p className={`font-bold text-sm flex items-center ${ownerVerificationData.isVerified ? 'text-green-600' : 'text-red-600'}`}>
+                                        {ownerVerificationData.isVerified ? <ThumbsUp className='h-4 w-4 mr-2' /> : <ThumbsDown className='h-4 w-4 mr-2' />} 
+                                        Owner's Review: {ownerVerificationData.isVerified ? 'Confirmed (Fixed)' : 'Rejected (Still Broken)'}
+                                    </p>
+                                    <p className='text-xs text-gray-500 my-1'>
+                                        Submitted: {new Date(ownerVerificationData.verifiedAt).toLocaleString()}
+                                    </p>
+                                    <div className='text-xs text-gray-500 flex items-center mb-2'>
+                                        <Globe className='h-3 w-3 mr-1'/> Loc: Lat {ownerVerificationData.location?.latitude?.toFixed(4)}, Lon {ownerVerificationData.location?.longitude?.toFixed(4)}
+                                    </div>
+                                    <a 
+                                        href={ownerVerificationData.verificationImage} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="text-sm font-medium text-blue-600 hover:underline flex items-center"
+                                    >
+                                        <ImageIcon className="h-4 w-4 mr-1" /> View Verification Photo Proof
+                                    </a>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
+                    {/* NO ADMIN ACTION BUTTONS - VIEW ONLY MODE */}
+                    <button onClick={onClose} className="mt-4 w-full py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition duration-300">
+                        Close Review
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+// -------------------------------------------------------------
+
 const AdminDashboard = () => {
     const { user } = useAuth();
     const [complaints, setComplaints] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState(null); // Dashboard global error
     const [isUpdating, setIsUpdating] = useState(false);
     const [isForwarding, setIsForwarding] = useState(false);
     const [forwardSuccess, setForwardSuccess] = useState(null);
-    const [departmentEmail, setDepartmentEmail] = useState('');
+    const [departmentEmail, setDepartmentEmail] = useState(DEPARTMENT_OPTIONS[0]?.email || ''); 
     const [selectedComplaint, setSelectedComplaint] = useState(null);
     const [resolutionData, setResolutionData] = useState({ status: '', details: '' });
     const [statusFilter, setStatusFilter] = useState('All');
+    const [adminVerificationModal, setAdminVerificationModal] = useState({ isOpen: false, complaint: null });
+    
+    // Error specific to the status update modal
+    const [modalError, setModalError] = useState(null); 
+
 
     const isDescriptionRequired = (status) => {
         return status !== 'Registered';
@@ -52,7 +216,8 @@ const AdminDashboard = () => {
             const response = await api.getAllComplaints();
             setComplaints(response.complaints || []);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to fetch all complaints. Server or token issue.');
+            console.error('Error fetching complaints:', err);
+            setError(err.response?.data?.message || 'Failed to fetch all complaints. Check server connection.');
         } finally {
             setLoading(false);
         }
@@ -63,16 +228,20 @@ const AdminDashboard = () => {
     }, []);
 
     const filteredComplaints = useMemo(() => {
-        if (statusFilter === 'All') {
-            return complaints;
-        }
-        return complaints.filter(c => c.status === statusFilter);
+        if (statusFilter === 'All') return complaints;
+        return complaints.filter(c => c.status === statusFilter); // Filter only by main status
     }, [complaints, statusFilter]);
 
+    const handleCloseModal = () => {
+        setSelectedComplaint(null);
+        setModalError(null); // Crucial: clear error when closing
+    }
+    
     const handleOpenModal = (complaint) => {
-        setError(null);
+        setError(null); // Clear global error
+        setModalError(null); // Clear modal-specific error
         setForwardSuccess(null);
-        setDepartmentEmail(DEPARTMENT_OPTIONS[0].email);
+        setDepartmentEmail(DEPARTMENT_OPTIONS[0]?.email || ''); 
         setSelectedComplaint(complaint);
         setResolutionData({
             status: complaint.status,
@@ -80,152 +249,141 @@ const AdminDashboard = () => {
         });
     };
 
+    const handleOpenAdminVerification = (complaint) => {
+        setAdminVerificationModal({ isOpen: true, complaint });
+    };
+
+    const handleCloseAdminVerification = () => {
+        setAdminVerificationModal({ isOpen: false, complaint: null });
+    };
+
+    const handleForwardEmail = async (e) => {
+        e.preventDefault();
+        if (!selectedComplaint || !departmentEmail) return;
+
+        // Frontend check for Verified Complete status (Optional, but good UX)
+        if (selectedComplaint.status === 'Verified Complete') {
+            setModalError('Cannot forward: Complaint is already Verified Complete and finalized by the citizen.');
+            return;
+        }
+
+        setIsForwarding(true);
+        setForwardSuccess(null);
+        setModalError(null); 
+
+        try {
+            await api.forwardComplaintEmail(selectedComplaint._id, departmentEmail);
+            setForwardSuccess(`Complaint successfully forwarded to ${departmentEmail}.`);
+        } catch (err) {
+            console.error('Forward Email Failed:', err.response?.data || err);
+            setModalError(err.response?.data?.message || 'Email forwarding failed. Check mail server logs.');
+        } finally {
+            setIsForwarding(false);
+        }
+    };
+    
     const handleUpdate = async (e) => {
         e.preventDefault();
         if (!selectedComplaint) return;
 
-        const trimmedDetails = resolutionData.details.trim();
+        // Front-end block: If it's Verified Complete, block the update
+        if (selectedComplaint.status === 'Verified Complete') {
+            setModalError('This complaint is Verified Complete by the citizen and its status cannot be changed by the administrator.');
+            return;
+        }
+        // Front-end block: Block admin from setting *to* Verified Complete
+        if (resolutionData.status === 'Verified Complete') {
+            setModalError('Admin cannot set status directly to "Verified Complete". This status is set automatically by the original citizen.');
+            return;
+        }
 
-        if (isDescriptionRequired(resolutionData.status) && trimmedDetails.length === 0) {
-            setError(`Resolution details are mandatory and cannot be blank for status: ${resolutionData.status}.`);
+        const trimmedDetails = resolutionData.details.trim();
+        const newStatus = resolutionData.status;
+
+        if (isDescriptionRequired(newStatus) && trimmedDetails.length === 0) {
+            setModalError(`Resolution details are mandatory and cannot be blank for status: ${newStatus}.`);
             return;
         }
 
         setIsUpdating(true);
-        setError(null);
+        setModalError(null); 
 
         try {
             const updated = await api.updateComplaintStatus(
                 selectedComplaint._id,
-                resolutionData.status,
+                newStatus,
                 trimmedDetails.length > 0 ? trimmedDetails : null
             );
 
+            // If success, update local state and close modal
             setComplaints(complaints.map(c =>
                 c._id === updated.complaint._id ? updated.complaint : c
             ));
-
-            setSelectedComplaint(null);
+            handleCloseModal(); 
+            
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to update complaint status.');
+            console.error('Update Complaint Status Failed:', err.response?.data || err);
+            const backendMessage = err.response?.data?.message || 'An unknown error occurred.';
+            // If the backend returned the 403 error, it will show here.
+            setModalError(`Update Failed: ${backendMessage}.`);
         } finally {
             setIsUpdating(false);
         }
     };
 
-    const handleForwardEmail = async () => {
-        if (!selectedComplaint || !departmentEmail) return;
-
-        setIsForwarding(true);
-        setError(null);
-        setForwardSuccess(null);
-
-        try {
-            const result = await api.forwardComplaintEmail(selectedComplaint._id, departmentEmail);
-            setForwardSuccess(result.message);
-        } catch (err) {
-            const errorMessage = err.response?.data?.message || 'Failed to forward complaint email. Check your network or server logs.';
-            setError(errorMessage);
-        } finally {
-            setIsForwarding(false);
-        }
-    };
-
-    const StatusCounts = ({ data }) => {
-        const counts = data.reduce((acc, c) => {
-            acc[c.status] = (acc[c.status] || 0) + 1;
-            return acc;
-        }, {});
-
-        return (
-            // Responsive: Changes from 2 to 4 columns on small screens
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"> 
-                <div className="bg-blue-100 p-4 rounded-xl shadow-md flex items-center justify-between">
-                    <p className="text-blue-800 text-3xl font-bold">{data.length}</p>
-                    <p className="text-blue-700 font-semibold text-right">Total</p>
-                </div>
-                <div className="bg-yellow-100 p-4 rounded-xl shadow-md flex items-center justify-between">
-                    <p className="text-yellow-800 text-3xl font-bold">{counts.Registered || 0}</p>
-                    <p className="text-yellow-700 font-semibold text-right">New</p>
-                </div>
-                <div className="bg-green-100 p-4 rounded-xl shadow-md flex items-center justify-between">
-                    <p className="text-green-800 text-3xl font-bold">{counts.Resolved || 0}</p>
-                    <p className="text-green-700 font-semibold text-right">Resolved</p>
-                </div>
-                <div className="bg-red-100 p-4 rounded-xl shadow-md flex items-center justify-between">
-                    <p className="text-red-800 text-3xl font-bold">{counts.Rejected || 0}</p>
-                    <p className="text-red-700 font-semibold text-right">Rejected</p>
-                </div>
-            </div>
-        );
-    };
 
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center text-xl text-gray-700">
                 <Loader2 className="animate-spin h-8 w-8 text-red-500 mr-3" />
-                Loading Admin Dashboard...
+                Loading All Complaints...
             </div>
         );
     }
-
+    
     return (
-        // Increased max width on large screens, auto margin for centering, responsive padding
         <div className="max-w-7xl lg:max-w-8xl mx-auto p-4 sm:p-8 my-5 sm:my-10">
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-red-700 mb-2 flex items-center">
-                <Zap className="h-7 w-7 sm:h-8 sm:w-8 mr-3 text-red-500" /> Admin Control Panel
-            </h2>
-            <p className="text-gray-600 mb-8">Manage and track all reported city issues.</p>
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-2">Admin Dashboard</h1>
+            <p className="text-gray-600 mb-8">Manage and track all citizen-reported complaints.</p>
 
             <StatusCounts data={complaints} />
 
-            {error && !isForwarding && (
-                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4" role="alert">
-                    <p>{error}</p>
-                </div>
+            {/* Global error for dashboard-level failures */}
+            {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm" role="alert">{error}</div>
             )}
 
-            {/* Responsive Controls: Stacks vertically on small screens */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-y-4">
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-800">All Complaints</h3>
-
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
-                    <div className="flex items-center space-x-2">
-                        <label htmlFor="statusFilter" className="text-sm font-medium text-gray-700 whitespace-nowrap">Filter:</label>
-                        <select
-                            id="statusFilter"
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className="p-2 border border-gray-300 rounded-lg text-sm bg-white shadow-sm w-full"
-                        >
-                            {FILTER_OPTIONS.map(status => (
-                                <option key={status} value={status}>{status}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <button
-                        onClick={fetchAllComplaints}
-                        disabled={loading || isUpdating}
-                        className="flex items-center bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-300 transition duration-150 text-sm disabled:opacity-50 w-full sm:w-auto justify-center"
+            <div className="flex justify-between items-center mb-6">
+                <div className='flex items-center space-x-3'>
+                    <label htmlFor="statusFilter" className="text-sm font-medium text-gray-700">Filter:</label>
+                    <select
+                        id="statusFilter"
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="border border-gray-300 rounded-lg p-2 text-sm focus:ring-red-500 focus:border-red-500"
                     >
-                        <Loader2 className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                        Refresh List
-                    </button>
+                        {FILTER_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
                 </div>
+                <button
+                    onClick={fetchAllComplaints}
+                    className="flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-150 text-sm font-medium"
+                >
+                    <Loader2 className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Refresh
+                </button>
             </div>
 
-            {/* Responsive Table: Enables horizontal scroll on small screens */}
+
             <div className="bg-white rounded-xl shadow-lg overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                            {/* Hide less critical columns on small screens */}
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Category</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Citizen</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Citizen Verification</th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
@@ -243,12 +401,32 @@ const AdminDashboard = () => {
                                 <td className="px-6 py-4">
                                     <ComplaintStatusBadge status={c.status} />
                                 </td>
-                                <td className="px-6 py-4 text-right text-sm font-medium">
+                                <td className="px-6 py-4 hidden lg:table-cell">
+                                    <p className="text-xs text-gray-700 font-medium">{c.verificationStatus}</p>
+                                    {(c.verificationCount > 0 || c.rejectionCount > 0) && (
+                                        <div className='flex items-center text-xs mt-1'>
+                                            <ThumbsUp className='h-3 w-3 text-green-500 mr-1' /> {c.verificationCount}
+                                            <ThumbsDown className='h-3 w-3 text-red-500 ml-2 mr-1' /> {c.rejectionCount}
+                                        </div>
+                                    )}
+                                </td>
+                                <td className="px-6 py-4 text-right text-sm font-medium space-y-2 flex flex-col items-end">
+                                    
+                                    {/* Show View Button if ANY verification record exists */}
+                                    {c.verifications?.length > 0 && (
+                                        <button
+                                            onClick={() => handleOpenAdminVerification(c)}
+                                            className="text-purple-600 hover:text-purple-900 flex items-center justify-end ml-auto whitespace-nowrap text-xs bg-purple-100 p-1.5 rounded-md font-bold"
+                                        >
+                                            <ShieldCheck className='h-4 w-4 mr-1' /> View Owner Evidence
+                                        </button>
+                                    )}
+
                                     <button
                                         onClick={() => handleOpenModal(c)}
                                         className="text-red-600 hover:text-red-900 flex items-center justify-end ml-auto whitespace-nowrap"
                                     >
-                                        <Settings className='h-4 w-4 mr-1' /> Update
+                                        <Settings className='h-4 w-4 mr-1' /> Update Status
                                     </button>
                                 </td>
                             </tr>
@@ -262,60 +440,62 @@ const AdminDashboard = () => {
                 )}
             </div>
 
-            {/* Status Update Modal (Responsive centering and scroll) */}
+            {/* Status Update Modal (The original one) */}
             {selectedComplaint && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
                     <div className="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-sm sm:max-w-lg my-8">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl sm:text-2xl font-bold text-gray-900">Manage Complaint #{selectedComplaint._id.substring(0, 8)}</h3>
-                            <button onClick={() => setSelectedComplaint(null)}>
+                            <button onClick={handleCloseModal}>
                                 <XCircle className='h-6 w-6 text-gray-400 hover:text-gray-600' />
                             </button>
                         </div>
                         <p className="text-sm mb-4 text-gray-600">**{selectedComplaint.title}** submitted by {selectedComplaint.citizen?.name}.</p>
+
+                        {/* Modal-specific Error Display */}
+                        {modalError && (
+                             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm" role="alert">
+                                {modalError}
+                             </div>
+                        )}
+
+                        {/* Block Message if Verified Complete */}
+                        {selectedComplaint.status === 'Verified Complete' && !modalError && (
+                             <div className="bg-gray-100 border border-gray-400 text-gray-700 px-4 py-3 rounded-lg mb-4 text-sm font-semibold" role="alert">
+                                <ShieldCheck className='inline h-4 w-4 mr-1 mb-0.5 text-purple-600'/> This complaint is **Verified Complete** by the citizen and cannot be modified.
+                             </div>
+                        )}
+
 
                         {/* Email Forward Section */}
                         <div className="border border-red-200 p-4 rounded-lg mb-6 bg-red-50 space-y-3">
                             <h4 className='text-lg font-semibold text-red-700 flex items-center'>
                                 <Mail className='h-5 w-5 mr-2' /> Forward Complaint to Department
                             </h4>
+                            {forwardSuccess && <div className="bg-green-100 border border-green-400 text-green-700 px-3 py-2 rounded-lg text-xs">{forwardSuccess}</div>}
 
-                            {/* Department Select */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Select Department</label>
+                            <form onSubmit={handleForwardEmail} className='flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2'>
                                 <select
                                     value={departmentEmail}
                                     onChange={(e) => setDepartmentEmail(e.target.value)}
-                                    className="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-red-500 focus:border-red-500 bg-white"
-                                    disabled={isForwarding}
+                                    required
+                                    // Disable selection if status is Verified Complete
+                                    disabled={selectedComplaint.status === 'Verified Complete' || isForwarding}
+                                    className="sm:flex-1 border border-gray-300 rounded-lg p-3 text-sm focus:ring-red-500 focus:border-red-500 bg-white disabled:bg-gray-200"
                                 >
                                     {DEPARTMENT_OPTIONS.map(d => (
                                         <option key={d.email} value={d.email}>{d.name} ({d.email})</option>
                                     ))}
                                 </select>
-                            </div>
-
-                            {/* Forward Button */}
-                            <button
-                                onClick={handleForwardEmail}
-                                disabled={isForwarding || !departmentEmail}
-                                className="w-full py-2 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition duration-300 flex justify-center items-center disabled:bg-gray-400 text-base"
-                            >
-                                {isForwarding ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : <Mail className="h-5 w-5 mr-2" />}
-                                {isForwarding ? "Sending Email..." : `Forward Complaint to ${DEPARTMENT_OPTIONS.find(d => d.email === departmentEmail)?.name || 'Department'}`}
-                            </button>
-
-                            {/* Forward Success/Error Message */}
-                            {forwardSuccess && (
-                                <p className="text-sm text-green-700 bg-green-100 p-2 rounded flex items-center">
-                                    <CheckCircle className='h-4 w-4 mr-1' /> {forwardSuccess}
-                                </p>
-                            )}
-                            {error && isForwarding === false && (
-                                <p className="text-sm text-red-700 bg-red-100 p-2 rounded flex items-center">
-                                    <XCircle className='h-4 w-4 mr-1' /> {error}
-                                </p>
-                            )}
+                                <button
+                                    type="submit"
+                                    // Disable button if status is Verified Complete
+                                    disabled={selectedComplaint.status === 'Verified Complete' || isForwarding}
+                                    className="sm:w-auto px-4 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition duration-300 flex justify-center items-center text-sm disabled:bg-gray-400"
+                                >
+                                    {isForwarding ? <Loader2 className="animate-spin h-5 w-5" /> : "Forward"}
+                                </button>
+                            </form>
                         </div>
 
                         {/* Status Update Form */}
@@ -329,10 +509,12 @@ const AdminDashboard = () => {
                                     value={resolutionData.status}
                                     onChange={(e) => {
                                         setResolutionData({ ...resolutionData, status: e.target.value });
-                                        setError(null);
+                                        setModalError(null); 
                                     }}
                                     required
-                                    className="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-red-500 focus:border-red-500 bg-white"
+                                    // Disable selection if status is Verified Complete
+                                    disabled={selectedComplaint.status === 'Verified Complete' || isUpdating}
+                                    className="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-red-500 focus:border-red-500 bg-white disabled:bg-gray-200"
                                 >
                                     {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
@@ -349,11 +531,13 @@ const AdminDashboard = () => {
                                     value={resolutionData.details}
                                     onChange={(e) => {
                                         setResolutionData({ ...resolutionData, details: e.target.value });
-                                        setError(null);
+                                        setModalError(null); 
                                     }}
                                     placeholder="Enter details about the action taken to resolve or reject the complaint."
                                     required={isDescriptionRequired(resolutionData.status)}
-                                    className="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-red-500 focus:border-red-500"
+                                    // Disable textarea if status is Verified Complete
+                                    disabled={selectedComplaint.status === 'Verified Complete' || isUpdating}
+                                    className="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-red-500 focus:border-red-500 disabled:bg-gray-200"
                                 />
                             </div>
 
@@ -365,14 +549,15 @@ const AdminDashboard = () => {
                                     rel="noopener noreferrer"
                                     className="text-sm font-medium text-blue-600 hover:text-blue-800 flex items-center"
                                 >
-                                    View Photo Evidence
+                                    <ImageIcon className="h-4 w-4 mr-1" /> View Photo Evidence (Citizen's Original)
                                 </a>
                             </div>
 
                             {/* Submit Button */}
                             <button
                                 type="submit"
-                                disabled={isUpdating}
+                                // Disable submission if status is Verified Complete
+                                disabled={selectedComplaint.status === 'Verified Complete' || isUpdating}
                                 className="w-full py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition duration-300 flex justify-center disabled:bg-gray-400 text-base"
                             >
                                 {isUpdating ? <Loader2 className="animate-spin h-6 w-6" /> : "Save Status Update"}
@@ -381,6 +566,13 @@ const AdminDashboard = () => {
                     </div>
                 </div>
             )}
+            
+            {/* Admin Verification Review Modal (View Only) */}
+            <AdminVerificationModal 
+                isOpen={adminVerificationModal.isOpen}
+                onClose={handleCloseAdminVerification}
+                complaint={adminVerificationModal.complaint}
+            />
         </div>
     );
 };

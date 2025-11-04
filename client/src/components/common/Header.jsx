@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut, User, Zap, Menu, X, LayoutDashboard, FileText, Send } from 'lucide-react';
+// 🚨 Added ShieldCheck for Success Rate Icon 🚨
+import { LogOut, User, Zap, Menu, X, LayoutDashboard, FileText, Send, ShieldCheck } from 'lucide-react'; 
 
 const Header = () => {
     const { user, isAuthenticated, logout } = useAuth();
     const navigate = useNavigate();
-    // 🚨 NEW STATE for mobile menu visibility
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const handleLogout = () => {
@@ -28,6 +28,8 @@ const Header = () => {
         } else if (isAdmin) {
             return [
                 { name: 'Admin Dashboard', path: '/admin-dashboard', icon: LayoutDashboard },
+                // 🚨 NEW LINK ADDED 🚨
+                { name: 'Success Rate', path: '/admin/success-rate', icon: ShieldCheck }, 
             ];
         }
         return [];
@@ -39,7 +41,6 @@ const Header = () => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                     {/* Logo and App Name */}
-                    {/* Adjusted text size for responsiveness */}
                     <Link to="/" className="flex items-center space-x-2 text-xl sm:text-2xl font-bold text-blue-600 hover:text-blue-800">
                         <Zap className="h-7 w-7 text-yellow-500" />
                         <span>CivicFix</span>
@@ -129,7 +130,7 @@ const Header = () => {
                                 key={link.name}
                                 to={link.path}
                                 onClick={() => setIsMobileMenuOpen(false)}
-                                className="text-gray-700 hover:bg-blue-50 hover:text-blue-600  px-3 py-2 rounded-md text-base font-medium flex items-center transition-colors"
+                                className="text-gray-700 hover:bg-blue-50 hover:text-blue-600  px-3 py-2 rounded-md text-base font-medium flex items-center transition-colors"
                             >
                                 <link.icon className="h-5 w-5 mr-3" />
                                 {link.name}
@@ -155,11 +156,11 @@ const Header = () => {
                         {/* Guest Action (If not authenticated) - Register link */}
                         {!isAuthenticated && (
                              <Link 
-                                to="/register" 
-                                onClick={() => setIsMobileMenuOpen(false)}
-                                className="w-full text-left flex items-center bg-blue-600 text-white px-3 py-2 rounded-lg text-base font-medium hover:bg-blue-700 transition duration-150 mt-2"
-                             >
-                                Register
+                                 to="/register" 
+                                 onClick={() => setIsMobileMenuOpen(false)}
+                                 className="w-full text-left flex items-center bg-blue-600 text-white px-3 py-2 rounded-lg text-base font-medium hover:bg-blue-700 transition duration-150 mt-2"
+                              >
+                                 Register
                              </Link>
                         )}
                     </div>

@@ -1,76 +1,51 @@
+// File: utils/imageUploader.js
+
 const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
 const path = require('path');
-const { uploadImageToCloudinary: uploadToCloudinary } = require('../config/cloudinary'); // ✅ renamed to avoid conflict
 
-// --- 1. LOCAL STORAGE FALLBACK FUNCTION ---
+// --- 1. CLOUDINARY UPLOAD CORE ---
 /**
- * Saves a file buffer to the local 'uploads' directory.
- * NOTE: Ensure the 'uploads' directory exists in your project root.
- */
-const saveImageToLocalStorage = (file, folder) => {
-  return new Promise((resolve, reject) => {
-    const uploadDir = path.join(__dirname, '..', 'uploads', folder);
-
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    const filename = `${Date.now()}-${file.name}`;
-    const filePath = path.join(uploadDir, filename);
-
-    fs.writeFile(filePath, file.data, (err) => {
-      if (err) return reject(err);
-      resolve({
-        location: 'local',
-        url: `/uploads/${folder}/${filename}`,
-        publicId: null,
-      });
-    });
-  });
-};
-
-// --- 2. CLOUDINARY UPLOAD WRAPPER ---
-/**
- * Uploads a file buffer to Cloudinary.
+ * Uploads a file buffer (from express-fileupload) to Cloudinary.
  * Returns a standardized object for consistency.
  */
 const uploadFileToCloudinary = async (file, folder) => {
-  try {
-    // Convert buffer to Base64 Data URI
-    const base64Data = Buffer.from(file.data).toString('base64');
-    const dataUri = `data:${file.mimetype};base64,${base64Data}`;
+    try {
+        // CRITICAL FIX: Convert file buffer to Base64 Data URI for reliable Cloudinary upload
+        const base64Data = Buffer.from(file.data).toString('base64');
+        const dataUri = `data:${file.mimetype};base64,${base64Data}`;
 
-    const result = await uploadToCloudinary(dataUri, folder);
+        const result = await cloudinary.uploader.upload(dataUri, {
+            folder,
+            resource_type: 'auto', // handles images/videos
+        });
 
-    return {
-      location: 'cloudinary',
-      url: result,
-      publicId: result.public_id || null,
-    };
-  } catch (error) {
-    console.error('❌ Cloudinary upload failed:', error);
-    throw error;
-  }
+        return {
+            location: 'cloudinary',
+            url: result.secure_url, // Return the secure URL
+            publicId: result.public_id || null,
+        };
+    } catch (error) {
+        console.error('❌ Cloudinary upload failed in utility:', error);
+        throw error;
+    }
 };
 
-// --- 3. UNIFIED ENTRY POINT ---
-/**
- * Decides whether to upload to Cloudinary or local storage.
- */
-exports.handleFileUpload = async (file, folder = 'misc') => {
-  const isCloudinaryConfigured = !!cloudinary.config().cloud_name;
 
-  if (isCloudinaryConfigured) {
-    console.log(`✅ Cloudinary configured. Uploading ${file.name} to cloud.`);
-    try {
-      return await uploadFileToCloudinary(file, folder);
-    } catch (error) {
-      console.error(`⚠️ Cloudinary failed (${error.message}). Using local fallback.`);
-      return await saveImageToLocalStorage(file, folder);
+/**
+ * Main handler to upload a file, attempting Cloudinary first.
+ */
+exports.uploadImageToCloudinary = async (file, folder = 'misc') => {
+    // Check if Cloudinary is configured (api_key check is often sufficient)
+    const isCloudinaryConfigured = !!cloudinary.config().api_key; 
+
+    if (isCloudinaryConfigured) {
+        console.log(`✅ Cloudinary configured. Attempting to upload ${file.name} to cloud.`);
+        // Try Cloudinary upload. The controller handles the try-catch for the local fallback.
+        return await uploadFileToCloudinary(file, folder); 
+    } else {
+        // If config is missing, force an error to trigger the local fallback logic in the controller.
+        console.log(`⚠️ Cloudinary not configured. Skipping uploadFileToCloudinary attempt.`);
+        throw new Error("Cloudinary not configured. Forced fallback.");
     }
-  } else {
-    console.log(`⚠️ Cloudinary not configured. Saving ${file.name} locally.`);
-    return await saveImageToLocalStorage(file, folder);
-  }
 };

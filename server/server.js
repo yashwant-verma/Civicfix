@@ -22,7 +22,7 @@ const PORT = process.env.PORT || 5000;
 
 // --- Database & Cloudinary Connections ---
 connectDB();
-cloudinaryConnect(); // ✅ FIX: Uncommented to initialize Cloudinary config
+cloudinaryConnect(); 
 
 // --- Middleware ---
 app.use(express.json());
@@ -30,13 +30,15 @@ app.use(cookieParser());
 app.use(
     fileUpload({
         useTempFiles: true,
-        tempFileDir: '/tmp/',
+        // 🚨 BEST PRACTICE FIX: Using path.join(__dirname, 'tmp') for cross-platform safety
+        tempFileDir: path.join(__dirname, 'tmp'), 
         // Set a high limit for potential image uploads
         limits: { fileSize: 50 * 1024 * 1024 } 
     })
 );
 
 // ✅ Serve uploaded images (local fallback)
+// Ensures the client can access images saved locally by the controller.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ✅ CORS Configuration (Allow frontend access)
