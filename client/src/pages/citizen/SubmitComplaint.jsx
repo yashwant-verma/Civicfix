@@ -2,9 +2,9 @@
 
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import * as api from '/src/api/complaints'; // FINAL ATTEMPT: Assume src is root
+import * as api from '/src/api/complaints'; 
 import { MapPin, Image, Send, Loader2, Camera, X } from 'lucide-react';
-import { useAuth } from '/src/context/AuthContext'; // FINAL ATTEMPT: Assume src is root
+import { useAuth } from '/src/context/AuthContext'; 
 
 const SubmitComplaint = () => {
     const { user } = useAuth();
@@ -36,7 +36,6 @@ const SubmitComplaint = () => {
         const file = e.target.files[0];
         if (file) {
             setFormData({ ...formData, complaintImage: file });
-            // Using the presence of files in ref to determine capture mode
             setUseCamera(fileInputRef.current.files.length > 0 && fileInputRef.current.capture === 'environment'); 
         } else {
             setFormData({ ...formData, complaintImage: null });
@@ -94,6 +93,7 @@ const SubmitComplaint = () => {
         } else {
             setLocationLoading(false);
             setError('Geolocation is not supported by this browser.');
+            
         }
     };
 
@@ -122,9 +122,9 @@ const SubmitComplaint = () => {
         for (const key in formData) {
             if (formData[key] !== null) {
                 if (key === 'address') {
-                     data.append(key, formData[key].trim());
+                    data.append(key, formData[key].trim());
                 } else {
-                     data.append(key, formData[key]);
+                    data.append(key, formData[key]);
                 }
             }
         }
@@ -194,26 +194,27 @@ const SubmitComplaint = () => {
                             value={formData.category}
                             onChange={handleInputChange}
                             required
-                            // Native dropdown behavior allows downward scrolling when necessary.
                             className="w-full border border-gray-300 rounded-lg p-3 focus:ring-blue-500 focus:border-blue-500 shadow-sm bg-white text-base"
                         >
+                            {/* 🌟 MAPPING FIX APPLIED HERE: VALUES MATCH SUCCESS RATE MAP KEYS 🌟 */}
                             <option value="Pothole">Pothole</option>
-                            <option value="Garbage">Illegal Dumping/Garbage</option>
-                            <option value="Water Leak">Water Leak/Pipe Burst</option>
-                            <option value="Street Light">Street Light Outage</option>
-                            <option value="Damaged Signage">Damaged/Missing Road Signage</option>
-                            <option value="Park Maintenance">Park/Playground Maintenance Issue</option>
-                            <option value="Traffic Light">Malfunctioning Traffic Light</option>
-                            <option value="Road Hazard">General Road Hazard (Oil Spill, Debris)</option>
-                            <option value="Tree Hazard">Fallen/Hazardous Tree or Branch</option>
-                            <option value="Noise Complaint">Excessive Noise/Public Disturbance</option>
-                            <option value="Sidewalk Repair">Broken/Damaged Sidewalk/Curb</option>
-                            <option value="Animal Control">Stray/Dangerous Animals (Animal Control)</option>
-                            <option value="Sewer Backup">Sewer/Drainage Backup</option>
-                            <option value="Public Safety">Non-Emergency Public Safety Concern</option>
-                            <option value="Homelessness">Encampment/Homelessness Concern</option>
-                            <option value="Public Building">Issue with Public Building/Property</option>
-                            <option value="Other">Other Unlisted City Issue</option>
+                            <option value="Illegal Dumping/Garbage">Illegal Dumping/Garbage</option>
+                            <option value="Water Leak/Pipe Burst">Water Leak/Pipe Burst</option>
+                            <option value="Street Light Outage">Street Light Outage</option>
+                            <option value="Damaged/Missing Road Signage">Damaged/Missing Road Signage</option>
+                            <option value="Park/Playground Maintenance Issue">Park/Playground Maintenance Issue</option>
+                            <option value="Malfunctioning Traffic Light">Malfunctioning Traffic Light</option>
+                            <option value="General Road Hazard (Oil Spill, Debris)">General Road Hazard (Oil Spill, Debris)</option>
+                            <option value="Fallen/Hazardous Tree or Branch">Fallen/Hazardous Tree or Branch</option>
+                            <option value="Excessive Noise/Public Disturbance">Excessive Noise/Public Disturbance</option>
+                            <option value="Broken/Damaged Sidewalk/Curb">Broken/Damaged Sidewalk/Curb</option>
+                            <option value="Stray/Dangerous Animals (Animal Control)">Stray/Dangerous Animals (Animal Control)</option>
+                            <option value="Sewer/Drainage Backup">Sewer/Drainage Backup</option>
+                            {/* FIX APPLIED HERE: Ensure value matches the map key exactly */}
+                            <option value="Non-Emergency Public Safety Concern">Non-Emergency Public Safety Concern</option> 
+                            <option value="Encampment/Homelessness Concern">Encampment/Homelessness Concern</option>
+                            <option value="Issue with Public Building/Property">Issue with Public Building/Property</option>
+                            <option value="Other Unlisted City Issue">Other Unlisted City Issue</option>
                         </select>
                     </div>
                 </div>
